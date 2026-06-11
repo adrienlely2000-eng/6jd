@@ -1,0 +1,35 @@
+{
+  "participants": [
+    {
+      "nom": "LELY PATRICK",
+      "parcours": "6 Jours de France 2027",
+      "categorie": "Master 5",
+      "club": "FRGTFR",
+      "typeCourse": "Course",
+      "dateNaissance": "2026-06-01",
+      "adresse": "07000",
+      "telephone": "065551456",
+      "sexe": "M",
+      "email": "jsp@gmail.com",
+      "tailleMaillot": "M",
+      "id": 1780850678664,
+      "createdAt": "2026-06-07T16:44:38.664Z"
+    },
+    {
+      "nom": "TEST",
+      "parcours": "6 Jours de France 2027",
+      "categorie": "Master 5",
+      "club": "TRST",
+      "typeCourse": "Course",
+      "dateNaissance": "2026-06-01",
+      "adresse": "grgrg",
+      "telephone": "1521561",
+      "sexe": "M",
+      "email": "g@gmail.com",
+      "tailleMaillot": "M",
+      "id": 1780852550171,
+      "createdAt": "2026-06-07T17:15:50.171Z"
+    }
+  ],
+  "admins": []
+}
