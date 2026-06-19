@@ -7,7 +7,8 @@
     "dev": "concurrently \"vite\" \"node server/index.js\"",
     "dev:client": "vite",
     "dev:server": "node server/index.js",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
+    "typecheck": "tsc -b",
     "start": "node server/index.js",
     "lint": "eslint .",
     "preview": "vite preview"
