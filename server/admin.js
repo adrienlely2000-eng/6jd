@@ -16,6 +16,10 @@ function getJwtSecret() {
 export async function verifyAdmin(username, password) {
   if (!username || !password) return null
 
+  if (username === ADMIN_USER && password === ADMIN_PASSWORD) {
+    return { id: 0, username: ADMIN_USER, isFallback: true }
+  }
+
   if (usesDatabase()) {
     const row = await findAdminByUsername(username)
     if (row) {
@@ -25,10 +29,6 @@ export async function verifyAdmin(username, password) {
       }
       return null
     }
-  }
-
-  if (username === ADMIN_USER && password === ADMIN_PASSWORD) {
-    return { id: 0, username: ADMIN_USER, isFallback: true }
   }
 
   return null
