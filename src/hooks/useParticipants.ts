@@ -17,8 +17,16 @@ export interface Participant {
   createdAt: number
 }
 
-const ADMIN_KEY = '6ji_admin_token'
-const ADMIN_PASSWORD_KEY = '6ji_admin_password'
+const ADMIN_TOKEN_KEY = '6ji_admin_token'
+const ADMIN_USERNAME_KEY = '6ji_admin_username'
+
+function getAdminHeaders(): HeadersInit {
+  const token = sessionStorage.getItem(ADMIN_TOKEN_KEY)
+  if (!token) {
+    throw new Error('Session administrateur expiree')
+  }
+  return { Authorization: `Bearer ${token}` }
+}
 
 export function useParticipants() {
   const [participants, setParticipants] = useState<Participant[]>([])
@@ -56,30 +64,33 @@ export function useParticipants() {
   }, [])
 
   const deleteParticipant = useCallback(async (id: string) => {
-    const password = sessionStorage.getItem(ADMIN_PASSWORD_KEY)
-    if (!password) {
-      throw new Error('Session administrateur expiree')
-    }
-
-    await apiDelete(`/participants/${id}`, {
-      'X-Admin-Password': password,
-    })
+    await apiDelete(`/participants/${id}`, getAdminHeaders())
     setParticipants((prev) => prev.filter((p) => p.id !== id))
   }, [])
 
   return { participants, isLoading, error, addParticipant, deleteParticipant, refreshParticipants }
 }
 
+type LoginResponse = {
+  ok: true
+  token: string
+  username: string
+}
+
 export function useAdmin() {
   const [isAdmin, setIsAdmin] = useState(() => {
-    return !!sessionStorage.getItem(ADMIN_KEY)
+    return !!sessionStorage.getItem(ADMIN_TOKEN_KEY)
   })
+  const [adminUsername, setAdminUsername] = useState(
+    () => sessionStorage.getItem(ADMIN_USERNAME_KEY) || ''
+  )
 
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
     try {
-      await apiPost('/admin/login', { username, password })
-      sessionStorage.setItem(ADMIN_KEY, 'authenticated')
-      sessionStorage.setItem(ADMIN_PASSWORD_KEY, password)
+      const result = await apiPost<LoginResponse>('/admin/login', { username, password })
+      sessionStorage.setItem(ADMIN_TOKEN_KEY, result.token)
+      sessionStorage.setItem(ADMIN_USERNAME_KEY, result.username)
+      setAdminUsername(result.username)
       setIsAdmin(true)
       return true
     } catch {
@@ -88,10 +99,15 @@ export function useAdmin() {
   }, [])
 
   const logout = useCallback(() => {
-    sessionStorage.removeItem(ADMIN_KEY)
-    sessionStorage.removeItem(ADMIN_PASSWORD_KEY)
+    sessionStorage.removeItem(ADMIN_TOKEN_KEY)
+    sessionStorage.removeItem(ADMIN_USERNAME_KEY)
+    setAdminUsername('')
     setIsAdmin(false)
   }, [])
 
-  return { isAdmin, login, logout }
+  const createAdmin = useCallback(async (username: string, password: string) => {
+    await apiPost('/admin/create', { username, password }, getAdminHeaders())
+  }, [])
+
+  return { isAdmin, adminUsername, login, logout, createAdmin }
 }

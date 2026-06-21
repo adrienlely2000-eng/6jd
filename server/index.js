@@ -5,13 +5,11 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import crypto from 'crypto'
 import { addParticipant, deleteParticipant, getParticipants, initStorage, usesDatabase } from './db.js'
+import { registerAdmin, requireAdmin, signAdminToken, verifyAdmin } from './admin.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT_DIR = path.join(__dirname, '..')
 const DIST_DIR = path.join(ROOT_DIR, 'dist')
-
-const ADMIN_USER = process.env.ADMIN_USER || 'admin'
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '6ji2027'
 const PORT = Number(process.env.PORT) || 3001
 
 function isValidParticipant(body) {
@@ -23,11 +21,6 @@ function isValidParticipant(body) {
     body?.telephone?.trim() &&
     body?.email?.trim()
   )
-}
-
-function isAdminAuthorized(req) {
-  const password = req.headers['x-admin-password']
-  return password === ADMIN_PASSWORD
 }
 
 const app = express()
@@ -77,12 +70,8 @@ app.post('/api/participants', async (req, res, next) => {
   }
 })
 
-app.delete('/api/participants/:id', async (req, res, next) => {
+app.delete('/api/participants/:id', requireAdmin, async (req, res, next) => {
   try {
-    if (!isAdminAuthorized(req)) {
-      return res.status(401).json({ error: 'Non autorise' })
-    }
-
     const deleted = await deleteParticipant(req.params.id)
     if (!deleted) {
       return res.status(404).json({ error: 'Inscription introuvable' })
@@ -94,14 +83,41 @@ app.delete('/api/participants/:id', async (req, res, next) => {
   }
 })
 
-app.post('/api/admin/login', (req, res) => {
-  const { username, password } = req.body || {}
+app.post('/api/admin/login', async (req, res, next) => {
+  try {
+    const { username, password } = req.body || {}
+    const admin = await verifyAdmin(username, password)
 
-  if (username === ADMIN_USER && password === ADMIN_PASSWORD) {
-    return res.json({ ok: true })
+    if (!admin) {
+      return res.status(401).json({ error: 'Identifiants incorrects' })
+    }
+
+    res.json({
+      ok: true,
+      token: signAdminToken(admin),
+      username: admin.username,
+    })
+  } catch (err) {
+    next(err)
   }
+})
 
-  res.status(401).json({ error: 'Identifiants incorrects' })
+app.post('/api/admin/create', requireAdmin, async (req, res, next) => {
+  try {
+    const { username, password } = req.body || {}
+
+    if (!usesDatabase()) {
+      return res.status(400).json({ error: 'DATABASE_URL requis pour creer un admin' })
+    }
+
+    await registerAdmin(username, password)
+    res.status(201).json({ ok: true, message: `Admin ${username.trim()} cree` })
+  } catch (err) {
+    if (err instanceof Error && (err.message.includes('requis') || err.message.includes('min'))) {
+      return res.status(400).json({ error: err.message })
+    }
+    next(err)
+  }
 })
 
 if (fs.existsSync(DIST_DIR)) {

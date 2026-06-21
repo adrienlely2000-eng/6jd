@@ -92,7 +92,7 @@ function ParticipantField({ label, value }: { label: string; value: string }) {
 export default function InscriptionPage() {
   const navigate = useNavigate()
   const { participants, isLoading, error, addParticipant, deleteParticipant } = useParticipants()
-  const { isAdmin, login, logout } = useAdmin()
+  const { isAdmin, adminUsername: currentAdmin, login, logout, createAdmin } = useAdmin()
 
   const [formData, setFormData] = useState({
     nom: '',
@@ -112,6 +112,10 @@ export default function InscriptionPage() {
   const [adminUsername, setAdminUsername] = useState('')
   const [adminPassword, setAdminPassword] = useState('')
   const [adminError, setAdminError] = useState(false)
+  const [newAdminUsername, setNewAdminUsername] = useState('')
+  const [newAdminPassword, setNewAdminPassword] = useState('')
+  const [createAdminMessage, setCreateAdminMessage] = useState<string | null>(null)
+  const [createAdminError, setCreateAdminError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -335,9 +339,61 @@ export default function InscriptionPage() {
                     Deconnexion
                   </button>
                 </div>
-                <p className="text-[11px]" style={{ color: 'var(--color-ash)' }}>
-                  Vous pouvez maintenant supprimer des participants du tableau.
+                <p className="text-[11px] mb-3" style={{ color: 'var(--color-ash)' }}>
+                  Connecte en tant que <strong style={{ color: 'var(--color-parchment)' }}>{currentAdmin}</strong>. Vous pouvez supprimer des participants.
                 </p>
+
+                <div className="pt-3 mt-3" style={{ borderTop: '1px solid rgba(240,235,225,0.08)' }}>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.08em] mb-2" style={{ color: 'var(--color-gold-muted)' }}>
+                    Creer un autre admin
+                  </p>
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault()
+                      setCreateAdminMessage(null)
+                      setCreateAdminError(null)
+                      try {
+                        await createAdmin(newAdminUsername, newAdminPassword)
+                        setCreateAdminMessage(`Admin "${newAdminUsername}" cree avec succes`)
+                        setNewAdminUsername('')
+                        setNewAdminPassword('')
+                      } catch (err) {
+                        setCreateAdminError(err instanceof Error ? err.message : 'Erreur lors de la creation')
+                      }
+                    }}
+                    className="space-y-2"
+                  >
+                    <input
+                      type="text"
+                      value={newAdminUsername}
+                      onChange={(e) => setNewAdminUsername(e.target.value)}
+                      placeholder="Identifiant"
+                      className="w-full px-3 py-2 text-[12px] outline-none rounded"
+                      style={{ ...inputStyle }}
+                    />
+                    <input
+                      type="password"
+                      value={newAdminPassword}
+                      onChange={(e) => setNewAdminPassword(e.target.value)}
+                      placeholder="Mot de passe (min 6 caracteres)"
+                      className="w-full px-3 py-2 text-[12px] outline-none rounded"
+                      style={{ ...inputStyle }}
+                    />
+                    {createAdminError && (
+                      <p className="text-[11px]" style={{ color: 'var(--color-ember)' }}>{createAdminError}</p>
+                    )}
+                    {createAdminMessage && (
+                      <p className="text-[11px]" style={{ color: 'var(--color-gold)' }}>{createAdminMessage}</p>
+                    )}
+                    <button
+                      type="submit"
+                      className="w-full py-2 text-[11px] font-bold uppercase tracking-[0.08em] rounded transition-all duration-200 hover:brightness-110"
+                      style={{ background: 'var(--color-gold)', color: 'var(--color-obsidian)' }}
+                    >
+                      Ajouter l'admin
+                    </button>
+                  </form>
+                </div>
               </div>
             ) : (
               <div

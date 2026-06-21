@@ -34,6 +34,14 @@ async function ensureSchema() {
       created_at BIGINT NOT NULL
     );
   `)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS admins (
+      id SERIAL PRIMARY KEY,
+      username VARCHAR(50) UNIQUE NOT NULL,
+      password_hash VARCHAR(255) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `)
   console.log('[DB] PostgreSQL schema ready')
 }
 
@@ -166,4 +174,25 @@ export async function deleteParticipant(id) {
   if (next.length === list.length) return false
   writeParticipantsToFile(next)
   return true
+}
+
+export async function findAdminByUsername(username) {
+  if (!pool) return null
+  await schemaReady
+  const { rows } = await pool.query('SELECT id, username, password_hash FROM admins WHERE username = $1', [username])
+  return rows[0] || null
+}
+
+export async function createAdminUser(username, passwordHash) {
+  if (!pool) {
+    throw new Error('DATABASE_URL requis pour creer un admin')
+  }
+  await schemaReady
+  const result = await pool.query(
+    'INSERT INTO admins (username, password_hash) VALUES ($1, $2) ON CONFLICT (username) DO NOTHING RETURNING id',
+    [username, passwordHash]
+  )
+  if (result.rowCount === 0) {
+    throw new Error('Ce nom d\'utilisateur existe deja')
+  }
 }
