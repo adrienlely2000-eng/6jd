@@ -4,41 +4,15 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import crypto from 'crypto'
+import { addParticipant, deleteParticipant, getParticipants, initStorage, usesDatabase } from './db.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT_DIR = path.join(__dirname, '..')
-const DATA_DIR = process.env.DATA_DIR || path.join(ROOT_DIR, 'data')
-const DATA_FILE = path.join(DATA_DIR, 'participants.json')
 const DIST_DIR = path.join(ROOT_DIR, 'dist')
 
 const ADMIN_USER = process.env.ADMIN_USER || 'admin'
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '6ji2027'
 const PORT = Number(process.env.PORT) || 3001
-
-function ensureDataFile() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true })
-  }
-  if (!fs.existsSync(DATA_FILE)) {
-    fs.writeFileSync(DATA_FILE, '[]', 'utf8')
-  }
-}
-
-function readParticipants() {
-  ensureDataFile()
-  try {
-    const raw = fs.readFileSync(DATA_FILE, 'utf8')
-    const data = JSON.parse(raw)
-    return Array.isArray(data) ? data : []
-  } catch {
-    return []
-  }
-}
-
-function writeParticipants(list) {
-  ensureDataFile()
-  fs.writeFileSync(DATA_FILE, JSON.stringify(list, null, 2), 'utf8')
-}
 
 function isValidParticipant(body) {
   return Boolean(
@@ -62,55 +36,62 @@ app.use(cors())
 app.use(express.json({ limit: '64kb' }))
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true })
+  res.json({ ok: true, storage: usesDatabase() ? 'postgresql' : 'file' })
 })
 
-app.get('/api/participants', (_req, res) => {
-  const participants = readParticipants().sort((a, b) => a.createdAt - b.createdAt)
-  res.json(participants)
+app.get('/api/participants', async (_req, res, next) => {
+  try {
+    const participants = await getParticipants()
+    res.json(participants)
+  } catch (err) {
+    next(err)
+  }
 })
 
-app.post('/api/participants', (req, res) => {
-  if (!isValidParticipant(req.body)) {
-    return res.status(400).json({ error: 'Donnees invalides ou incompletes' })
-  }
+app.post('/api/participants', async (req, res, next) => {
+  try {
+    if (!isValidParticipant(req.body)) {
+      return res.status(400).json({ error: 'Donnees invalides ou incompletes' })
+    }
 
-  const participants = readParticipants()
-  const participant = {
-    id: crypto.randomUUID(),
-    nom: req.body.nom.trim().toUpperCase(),
-    parcours: req.body.parcours || "6 Jours de l'Infini 2027",
-    categorie: req.body.categorie || 'Senior',
-    club: req.body.club.trim().toUpperCase(),
-    typeCourse: req.body.typeCourse || 'Course',
-    dateNaissance: req.body.dateNaissance,
-    adresse: req.body.adresse.trim(),
-    telephone: req.body.telephone.trim(),
-    sexe: req.body.sexe || 'M',
-    email: req.body.email.trim(),
-    tailleMaillot: req.body.tailleMaillot || 'M',
-    createdAt: Date.now(),
-  }
+    const participant = {
+      id: crypto.randomUUID(),
+      nom: req.body.nom.trim().toUpperCase(),
+      parcours: req.body.parcours || "6 Jours de l'Infini 2027",
+      categorie: req.body.categorie || 'Senior',
+      club: req.body.club.trim().toUpperCase(),
+      typeCourse: req.body.typeCourse || 'Course',
+      dateNaissance: req.body.dateNaissance,
+      adresse: req.body.adresse.trim(),
+      telephone: req.body.telephone.trim(),
+      sexe: req.body.sexe || 'M',
+      email: req.body.email.trim(),
+      tailleMaillot: req.body.tailleMaillot || 'M',
+      createdAt: Date.now(),
+    }
 
-  participants.push(participant)
-  writeParticipants(participants)
-  res.status(201).json(participant)
+    await addParticipant(participant)
+    res.status(201).json(participant)
+  } catch (err) {
+    next(err)
+  }
 })
 
-app.delete('/api/participants/:id', (req, res) => {
-  if (!isAdminAuthorized(req)) {
-    return res.status(401).json({ error: 'Non autorise' })
+app.delete('/api/participants/:id', async (req, res, next) => {
+  try {
+    if (!isAdminAuthorized(req)) {
+      return res.status(401).json({ error: 'Non autorise' })
+    }
+
+    const deleted = await deleteParticipant(req.params.id)
+    if (!deleted) {
+      return res.status(404).json({ error: 'Inscription introuvable' })
+    }
+
+    res.json({ ok: true })
+  } catch (err) {
+    next(err)
   }
-
-  const participants = readParticipants()
-  const next = participants.filter((p) => p.id !== req.params.id)
-
-  if (next.length === participants.length) {
-    return res.status(404).json({ error: 'Inscription introuvable' })
-  }
-
-  writeParticipants(next)
-  res.json({ ok: true })
 })
 
 app.post('/api/admin/login', (req, res) => {
@@ -140,7 +121,18 @@ app.use((_req, res) => {
   res.status(404).json({ error: 'Not found' })
 })
 
-app.listen(PORT, () => {
-  ensureDataFile()
-  console.log(`6JI server running on port ${PORT}`)
+app.use((err, _req, res, _next) => {
+  console.error('[API]', err)
+  res.status(500).json({ error: 'Erreur serveur' })
 })
+
+initStorage()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`6JI server running on port ${PORT} (${usesDatabase() ? 'PostgreSQL' : 'fichier local'})`)
+    })
+  })
+  .catch((err) => {
+    console.error('[DB] Init failed:', err)
+    process.exit(1)
+  })

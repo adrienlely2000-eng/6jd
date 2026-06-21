@@ -11,3 +11,13 @@ services:
         value: admin
       - key: ADMIN_PASSWORD
         sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sixjd-db
+          property: connectionString
+
+databases:
+  - name: sixjd-db
+    plan: free
+    databaseName: sixjd
+    user: sixjd

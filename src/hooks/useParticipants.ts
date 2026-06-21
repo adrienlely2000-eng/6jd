@@ -43,6 +43,12 @@ export function useParticipants() {
     refreshParticipants()
   }, [refreshParticipants])
 
+  useEffect(() => {
+    const onFocus = () => refreshParticipants()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [refreshParticipants])
+
   const addParticipant = useCallback(async (data: Omit<Participant, 'id' | 'createdAt'>) => {
     const newParticipant = await apiPost<Participant>('/participants', data)
     setParticipants((prev) => [...prev, newParticipant])
