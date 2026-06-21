@@ -9,8 +9,8 @@ async function parseResponse<T>(res: Response): Promise<T> {
   return data as T
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}/api${path}`)
+export async function apiGet<T>(path: string, headers?: HeadersInit): Promise<T> {
+  const res = await fetch(`${API_BASE}/api${path}`, { headers })
   return parseResponse<T>(res)
 }
 

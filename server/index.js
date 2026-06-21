@@ -4,8 +4,16 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import crypto from 'crypto'
-import { addParticipant, deleteParticipant, getParticipants, initStorage, usesDatabase } from './db.js'
-import { registerAdmin, requireAdmin, signAdminToken, verifyAdmin } from './admin.js'
+import {
+  addParticipant,
+  deleteAdminUser,
+  deleteParticipant,
+  getParticipants,
+  initStorage,
+  listAdmins,
+  usesDatabase,
+} from './db.js'
+import { registerAdmin, requireAdmin, requireSuperAdmin, signAdminToken, verifyAdmin } from './admin.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT_DIR = path.join(__dirname, '..')
@@ -96,13 +104,45 @@ app.post('/api/admin/login', async (req, res, next) => {
       ok: true,
       token: signAdminToken(admin),
       username: admin.username,
+      isSuperAdmin: Boolean(admin.isFallback),
     })
   } catch (err) {
     next(err)
   }
 })
 
-app.post('/api/admin/create', requireAdmin, async (req, res, next) => {
+app.get('/api/admin/users', requireSuperAdmin, async (_req, res, next) => {
+  try {
+    if (!usesDatabase()) {
+      return res.json([])
+    }
+
+    const admins = await listAdmins()
+    res.json(admins)
+  } catch (err) {
+    next(err)
+  }
+})
+
+app.delete('/api/admin/users/:id', requireSuperAdmin, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id)
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'Identifiant invalide' })
+    }
+
+    const deleted = await deleteAdminUser(id)
+    if (!deleted) {
+      return res.status(404).json({ error: 'Admin introuvable' })
+    }
+
+    res.json({ ok: true })
+  } catch (err) {
+    next(err)
+  }
+})
+
+app.post('/api/admin/create', requireSuperAdmin, async (req, res, next) => {
   try {
     const { username, password } = req.body || {}
 

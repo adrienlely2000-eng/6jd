@@ -196,3 +196,23 @@ export async function createAdminUser(username, passwordHash) {
     throw new Error('Ce nom d\'utilisateur existe deja')
   }
 }
+
+export async function listAdmins() {
+  if (!pool) return []
+  await schemaReady
+  const { rows } = await pool.query(
+    'SELECT id, username, created_at FROM admins ORDER BY created_at ASC'
+  )
+  return rows.map((row) => ({
+    id: row.id,
+    username: row.username,
+    createdAt: row.created_at,
+  }))
+}
+
+export async function deleteAdminUser(id) {
+  if (!pool) return false
+  await schemaReady
+  const result = await pool.query('DELETE FROM admins WHERE id = $1 RETURNING id', [id])
+  return result.rowCount > 0
+}

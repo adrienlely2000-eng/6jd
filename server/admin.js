@@ -45,7 +45,12 @@ export async function registerAdmin(username, plainPassword) {
 
 export function signAdminToken(admin) {
   return jwt.sign(
-    { id: admin.id, username: admin.username, role: 'admin' },
+    {
+      id: admin.id,
+      username: admin.username,
+      role: 'admin',
+      isSuperAdmin: Boolean(admin.isFallback),
+    },
     getJwtSecret(),
     { expiresIn: '24h' }
   )
@@ -68,4 +73,13 @@ export function requireAdmin(req, res, next) {
   } catch {
     return res.status(403).json({ error: 'Session expiree ou invalide' })
   }
+}
+
+export function requireSuperAdmin(req, res, next) {
+  requireAdmin(req, res, () => {
+    if (!req.admin?.isSuperAdmin) {
+      return res.status(403).json({ error: 'Reserve au superadmin' })
+    }
+    next()
+  })
 }

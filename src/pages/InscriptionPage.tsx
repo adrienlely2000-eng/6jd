@@ -1,11 +1,11 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, UserPlus, Trash2, Users, Award,
   Calendar, MapPin, Timer, Lock, Unlock, Shield, LogOut,
   Loader2
 } from 'lucide-react'
-import { useParticipants, useAdmin } from '../hooks/useParticipants'
+import { useParticipants, useAdmin, type AdminAccount } from '../hooks/useParticipants'
 
 const parcoursOptions = ["6 Jours de l'Infini 2027"]
 
@@ -92,7 +92,7 @@ function ParticipantField({ label, value }: { label: string; value: string }) {
 export default function InscriptionPage() {
   const navigate = useNavigate()
   const { participants, isLoading, error, addParticipant, deleteParticipant } = useParticipants()
-  const { isAdmin, adminUsername: currentAdmin, login, logout, createAdmin } = useAdmin()
+  const { isAdmin, isSuperAdmin, adminUsername: currentAdmin, login, logout, createAdmin, listAdmins, deleteAdmin } = useAdmin()
 
   const [formData, setFormData] = useState({
     nom: '',
@@ -116,10 +116,36 @@ export default function InscriptionPage() {
   const [newAdminPassword, setNewAdminPassword] = useState('')
   const [createAdminMessage, setCreateAdminMessage] = useState<string | null>(null)
   const [createAdminError, setCreateAdminError] = useState<string | null>(null)
+  const [adminAccounts, setAdminAccounts] = useState<AdminAccount[]>([])
+  const [adminAccountsLoading, setAdminAccountsLoading] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const dateInputRef = useRef<HTMLInputElement>(null)
+
+  const refreshAdminAccounts = useCallback(async () => {
+    if (!isSuperAdmin) {
+      setAdminAccounts([])
+      return
+    }
+    setAdminAccountsLoading(true)
+    try {
+      const accounts = await listAdmins()
+      setAdminAccounts(accounts)
+    } catch {
+      setAdminAccounts([])
+    } finally {
+      setAdminAccountsLoading(false)
+    }
+  }, [isSuperAdmin, listAdmins])
+
+  useEffect(() => {
+    if (isAdmin && isSuperAdmin) {
+      refreshAdminAccounts()
+    } else {
+      setAdminAccounts([])
+    }
+  }, [isAdmin, isSuperAdmin, refreshAdminAccounts])
 
   const openDatePicker = useCallback(() => {
     const input = dateInputRef.current
@@ -340,10 +366,51 @@ export default function InscriptionPage() {
                   </button>
                 </div>
                 <p className="text-[11px] mb-3" style={{ color: 'var(--color-ash)' }}>
-                  Connecte en tant que <strong style={{ color: 'var(--color-parchment)' }}>{currentAdmin}</strong>. Vous pouvez supprimer des participants.
+                  Connecte en tant que <strong style={{ color: 'var(--color-parchment)' }}>{currentAdmin}</strong>
+                  {isSuperAdmin ? ' (superadmin)' : ''}. Vous pouvez supprimer des participants.
                 </p>
 
+                {isSuperAdmin && (
                 <div className="pt-3 mt-3" style={{ borderTop: '1px solid rgba(240,235,225,0.08)' }}>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.08em] mb-2" style={{ color: 'var(--color-gold-muted)' }}>
+                    Admins crees
+                  </p>
+                  {adminAccountsLoading ? (
+                    <p className="text-[11px]" style={{ color: 'var(--color-ash)' }}>Chargement...</p>
+                  ) : adminAccounts.length === 0 ? (
+                    <p className="text-[11px]" style={{ color: 'var(--color-ash)' }}>Aucun admin en base.</p>
+                  ) : (
+                    <ul className="space-y-2 mb-4">
+                      {adminAccounts.map((account) => (
+                        <li
+                          key={account.id}
+                          className="flex items-center justify-between gap-2 px-3 py-2 rounded"
+                          style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(240,235,225,0.06)' }}
+                        >
+                          <span className="text-[12px] font-medium" style={{ color: 'var(--color-parchment)' }}>
+                            {account.username}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!window.confirm(`Supprimer l'admin "${account.username}" ?`)) return
+                              try {
+                                await deleteAdmin(account.id)
+                                await refreshAdminAccounts()
+                              } catch (err) {
+                                alert(err instanceof Error ? err.message : 'Erreur lors de la suppression')
+                              }
+                            }}
+                            className="p-1.5 rounded transition-colors duration-200 hover:bg-[rgba(200,80,60,0.15)]"
+                            title="Supprimer cet admin"
+                          >
+                            <Trash2 size={14} style={{ color: 'var(--color-ember)' }} />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
                   <p className="text-[11px] font-bold uppercase tracking-[0.08em] mb-2" style={{ color: 'var(--color-gold-muted)' }}>
                     Creer un autre admin
                   </p>
@@ -357,6 +424,7 @@ export default function InscriptionPage() {
                         setCreateAdminMessage(`Admin "${newAdminUsername}" cree avec succes`)
                         setNewAdminUsername('')
                         setNewAdminPassword('')
+                        await refreshAdminAccounts()
                       } catch (err) {
                         setCreateAdminError(err instanceof Error ? err.message : 'Erreur lors de la creation')
                       }
@@ -394,6 +462,7 @@ export default function InscriptionPage() {
                     </button>
                   </form>
                 </div>
+                )}
               </div>
             ) : (
               <div

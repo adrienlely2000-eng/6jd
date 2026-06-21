@@ -19,6 +19,13 @@ export interface Participant {
 
 const ADMIN_TOKEN_KEY = '6ji_admin_token'
 const ADMIN_USERNAME_KEY = '6ji_admin_username'
+const ADMIN_SUPER_KEY = '6ji_admin_super'
+
+export interface AdminAccount {
+  id: number
+  username: string
+  createdAt: string
+}
 
 function getAdminHeaders(): HeadersInit {
   const token = sessionStorage.getItem(ADMIN_TOKEN_KEY)
@@ -75,6 +82,7 @@ type LoginResponse = {
   ok: true
   token: string
   username: string
+  isSuperAdmin: boolean
 }
 
 export function useAdmin() {
@@ -84,13 +92,18 @@ export function useAdmin() {
   const [adminUsername, setAdminUsername] = useState(
     () => sessionStorage.getItem(ADMIN_USERNAME_KEY) || ''
   )
+  const [isSuperAdmin, setIsSuperAdmin] = useState(
+    () => sessionStorage.getItem(ADMIN_SUPER_KEY) === '1'
+  )
 
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
     try {
       const result = await apiPost<LoginResponse>('/admin/login', { username, password })
       sessionStorage.setItem(ADMIN_TOKEN_KEY, result.token)
       sessionStorage.setItem(ADMIN_USERNAME_KEY, result.username)
+      sessionStorage.setItem(ADMIN_SUPER_KEY, result.isSuperAdmin ? '1' : '0')
       setAdminUsername(result.username)
+      setIsSuperAdmin(result.isSuperAdmin)
       setIsAdmin(true)
       return true
     } catch {
@@ -101,7 +114,9 @@ export function useAdmin() {
   const logout = useCallback(() => {
     sessionStorage.removeItem(ADMIN_TOKEN_KEY)
     sessionStorage.removeItem(ADMIN_USERNAME_KEY)
+    sessionStorage.removeItem(ADMIN_SUPER_KEY)
     setAdminUsername('')
+    setIsSuperAdmin(false)
     setIsAdmin(false)
   }, [])
 
@@ -109,5 +124,13 @@ export function useAdmin() {
     await apiPost('/admin/create', { username, password }, getAdminHeaders())
   }, [])
 
-  return { isAdmin, adminUsername, login, logout, createAdmin }
+  const listAdmins = useCallback(async () => {
+    return apiGet<AdminAccount[]>('/admin/users', getAdminHeaders())
+  }, [])
+
+  const deleteAdmin = useCallback(async (id: number) => {
+    await apiDelete(`/admin/users/${id}`, getAdminHeaders())
+  }, [])
+
+  return { isAdmin, isSuperAdmin, adminUsername, login, logout, createAdmin, listAdmins, deleteAdmin }
 }
